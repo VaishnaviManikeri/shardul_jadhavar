@@ -12,34 +12,46 @@ connectDB();
 
 const app = express();
 
-// ================= MIDDLEWARE =================
+// ================= CORRECT CORS =================
+// Replace FRONTEND_URL in .env with your deployed frontend URL
+// Example: FRONTEND_URL=https://law5years.onrender.com
+
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
 app.use(
   cors({
-    origin: '*', // allow all (safe for now; can restrict later)
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: [
+      'http://localhost:5173', // Vite local
+      'http://localhost:3000', // React local
+      FRONTEND_URL, // Deployed frontend
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
+// ================= MIDDLEWARE =================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ================= TEST ROUTES =================
+// ================= SERVE UPLOADS =================
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Root test route (VERY IMPORTANT for Render 404 check)
+// ================= ROOT TEST ROUTE =================
 app.get('/', (req, res) => {
   res.send('Backend is running successfully 🚀');
 });
 
-// API test route
+// ================= ROUTES =================
 app.use('/api/test', require('./routes/testRoutes'));
-
-// ================= MAIN ROUTES =================
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
-app.use('/api/videos', require('./routes/videoRoutes')); // Add this line
+app.use('/api/videos', require('./routes/videoRoutes'));
 app.use('/api/blogs', require('./routes/blogRoutes'));
+
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({ error: 'API route not found' });
@@ -47,7 +59,7 @@ app.use((req, res) => {
 
 // ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('🔥 Server Error:', err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
     details: err.message,
