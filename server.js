@@ -38,7 +38,8 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
-
+app.use('/api/videos', require('./routes/videoRoutes')); // Add this line
+app.use('/api/blogs', require('./routes/blogRoutes'));
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({ error: 'API route not found' });
