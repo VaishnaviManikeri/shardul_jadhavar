@@ -15,13 +15,28 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ================= PUBLIC ROUTES =================
+
+// Get all blogs
 router.get('/', blogController.getAllBlogs);
 
 // ================= ADMIN ROUTES =================
+
+// Get all blogs for admin
 router.get('/admin/all', blogController.getAllBlogsAdmin);
+
+// Create blog
 router.post('/', upload.single('image'), blogController.createBlog);
+
+// Update blog
 router.put('/:id', upload.single('image'), blogController.updateBlog);
+
+// Delete blog
 router.delete('/:id', blogController.deleteBlog);
+
+// Toggle publish
 router.patch('/:id/toggle', blogController.togglePublish);
+
+// ✅ GET SINGLE BLOG BY ID (PUT AT BOTTOM)
+router.get('/:id', blogController.getBlogById);
 
 module.exports = router;

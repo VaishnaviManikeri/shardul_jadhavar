@@ -60,6 +60,26 @@ exports.getAllBlogs = async (req, res) => {
   }
 };
 
+// ================= GET SINGLE BLOG BY ID =================
+exports.getBlogById = async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    // Optional: Only allow published blogs publicly
+    if (!blog.isPublished) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    res.json(blog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // ================= GET ALL (ADMIN) =================
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
