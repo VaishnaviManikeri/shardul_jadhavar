@@ -1,24 +1,27 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const router = express.Router();
-const upload = require('../middleware/Blogupload');
+const blogController = require('../controllers/blogController');
 
-const {
-  createBlog,
-  getBlogs,
-  getAllBlogsAdmin,
-  getBlogById,
-  getBlogBySlug,
-  updateBlog,
-  deleteBlog,
-} = require('../controllers/blogController');
+// Multer storage
+const storage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
 
-router.get('/', getBlogs);
-router.get('/admin/all', getAllBlogsAdmin);
-router.get('/slug/:slug', getBlogBySlug);
-router.get('/:id', getBlogById);
+const upload = multer({ storage });
 
-router.post('/', upload.single('image'), createBlog);
-router.put('/:id', upload.single('image'), updateBlog);
-router.delete('/:id', deleteBlog);
+// PUBLIC
+router.get('/', blogController.getAllBlogs);
+
+// ADMIN
+router.get('/admin/all', blogController.getAllBlogsAdmin);
+router.post('/', upload.single('image'), blogController.createBlog);
+router.put('/:id', upload.single('image'), blogController.updateBlog);
+router.delete('/:id', blogController.deleteBlog);
+router.patch('/:id/toggle', blogController.togglePublish);
 
 module.exports = router;

@@ -12,39 +12,44 @@ connectDB();
 
 const app = express();
 
-// ================= CORRECT CORS =================
-// Replace FRONTEND_URL in .env with your deployed frontend URL
-// Example: FRONTEND_URL=https://law5years.onrender.com
-
-const FRONTEND_URL = process.env.FRONTEND_URL;
+// ================= CORS CONFIG =================
+const allowedOrigins = [
+  'http://localhost:5173',      // Vite local
+  'http://localhost:3000',      // React local
+  'https://sharduljadhavar.com' // ✅ Production frontend
+];
 
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173', // Vite local
-      'http://localhost:3000', // React local
-      FRONTEND_URL, // Deployed frontend
-    ],
-    credentials: true,
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow Postman, mobile apps
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   })
 );
 
-// ================= MIDDLEWARE =================
+// ================= BODY PARSER =================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ================= SERVE UPLOADS =================
+// ================= STATIC FOLDER =================
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ================= ROOT TEST ROUTE =================
+// ================= TEST ROUTES =================
 app.get('/', (req, res) => {
   res.send('Backend is running successfully 🚀');
 });
 
-// ================= ROUTES =================
 app.use('/api/test', require('./routes/testRoutes'));
+
+// ================= MAIN ROUTES =================
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
@@ -59,7 +64,7 @@ app.use((req, res) => {
 
 // ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error('🔥 Server Error:', err.stack);
+  console.error(err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
     details: err.message,
