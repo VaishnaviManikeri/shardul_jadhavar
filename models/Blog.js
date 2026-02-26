@@ -7,17 +7,26 @@ const blogSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    slug: {
+      type: String,
+      unique: true,
+    },
+
     content: {
       type: String,
       required: true,
     },
+
     image: {
       type: String,
     },
+
     author: {
       type: String,
       default: 'Admin',
     },
+
     isPublished: {
       type: Boolean,
       default: true,

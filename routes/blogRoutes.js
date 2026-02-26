@@ -4,7 +4,7 @@ const path = require('path');
 const router = express.Router();
 const blogController = require('../controllers/blogController');
 
-// Multer storage
+// ================= MULTER CONFIG =================
 const storage = multer.diskStorage({
   destination: 'uploads/',
   filename: (req, file, cb) => {
@@ -14,10 +14,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// PUBLIC
+// ================= PUBLIC ROUTES =================
 router.get('/', blogController.getAllBlogs);
 
-// ADMIN
+// ================= ADMIN ROUTES =================
 router.get('/admin/all', blogController.getAllBlogsAdmin);
 router.post('/', upload.single('image'), blogController.createBlog);
 router.put('/:id', upload.single('image'), blogController.updateBlog);
