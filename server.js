@@ -47,6 +47,11 @@ app.get('/', (req, res) => {
   res.send('Backend is running successfully 🚀');
 });
 
+// ================= ✅ PING ROUTE (ADDED) =================
+app.get('/ping', (req, res) => {
+  res.send('✅ Server is alive');
+});
+
 app.use('/api/test', require('./routes/testRoutes'));
 
 // ================= MAIN ROUTES =================
