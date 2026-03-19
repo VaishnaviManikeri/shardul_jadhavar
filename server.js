@@ -16,7 +16,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',      // Vite local
   'http://localhost:3000',      // React local
-  'https://sharduljadhavar.com' // ✅ Production frontend
+  'https://sharduljadhavar.com', // ✅ Production frontend
   'https://www.sharduljadhavar.com'
 ];
 
