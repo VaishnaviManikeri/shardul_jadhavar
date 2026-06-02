@@ -1,42 +1,43 @@
 const express = require('express');
+const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const router = express.Router();
 const blogController = require('../controllers/blogController');
+const authMiddleware = require('../middleware/auth');
 
-// ================= MULTER CONFIG =================
+// Configure multer for memory storage (will be sent to cloudinary)
 const storage = multer.diskStorage({
-  destination: 'uploads/',
   filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
-// ================= PUBLIC ROUTES =================
-
-// Get all blogs
+// Public routes
 router.get('/', blogController.getAllBlogs);
+router.get('/:slug', blogController.getBlogBySlug);
 
-// ================= ADMIN ROUTES =================
-
-// Get all blogs for admin
-router.get('/admin/all', blogController.getAllBlogsAdmin);
-
-// Create blog
-router.post('/', upload.single('image'), blogController.createBlog);
-
-// Update blog
-router.put('/:id', upload.single('image'), blogController.updateBlog);
-
-// Delete blog
-router.delete('/:id', blogController.deleteBlog);
-
-// Toggle publish
-router.patch('/:id/toggle', blogController.togglePublish);
-
-// ✅ GET SINGLE BLOG BY ID (PUT AT BOTTOM)
-router.get('/:id', blogController.getBlogById);
+// Admin routes (protected)
+router.get('/admin/all', authMiddleware, blogController.getAllBlogsAdmin);
+router.get('/admin/:id', authMiddleware, blogController.getBlogById);
+router.post('/', authMiddleware, upload.single('featuredImage'), blogController.createBlog);
+router.put('/:id', authMiddleware, upload.single('featuredImage'), blogController.updateBlog);
+router.delete('/:id', authMiddleware, blogController.deleteBlog);
+router.patch('/:id/toggle-publish', authMiddleware, blogController.togglePublish);
 
 module.exports = router;

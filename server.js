@@ -56,7 +56,6 @@ app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
 app.use('/api/videos', require('./routes/videoRoutes'));
 app.use('/api/blogs', require('./routes/blogRoutes'));
-
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({ error: 'API route not found' });
@@ -72,7 +71,7 @@ app.use((err, req, res, next) => {
 });
 
 // ================= START SERVER =================
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5026;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
