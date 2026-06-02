@@ -51,9 +51,9 @@ const blogSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  publishedAt: {
-    type: Date,
-    default: Date.now
+  isFeatured: {
+    type: Boolean,
+    default: false
   },
   views: {
     type: Number,
@@ -61,18 +61,21 @@ const blogSchema = new mongoose.Schema({
   },
   metaTitle: String,
   metaDescription: String,
-  seoKeywords: [String]
+  publishedAt: {
+    type: Date,
+    default: Date.now
+  }
 }, {
   timestamps: true
 });
 
-// Generate slug from title before saving
+// Create slug from title before saving
 blogSchema.pre('save', function(next) {
   if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()
       .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+      .replace(/^-+|-+$/g, '');
   }
   next();
 });
