@@ -13,9 +13,6 @@ const blogStorage = new CloudinaryStorage({
   }
 });
 
-// Memory storage for temporary processing
-const memoryStorage = multer.memoryStorage();
-
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|webp|gif/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -28,17 +25,11 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer upload instances
+// Multer upload instance for blog images
 const uploadBlogImage = multer({
   storage: blogStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: fileFilter
 });
 
-const uploadTempImage = multer({
-  storage: memoryStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: fileFilter
-});
-
-module.exports = { uploadBlogImage, uploadTempImage };
+module.exports = { uploadBlogImage };
