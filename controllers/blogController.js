@@ -1,6 +1,6 @@
 const Blog = require('../models/Blog');
 const cloudinary = require('../config/cloudinary');
-const streamifier = require('streamifier'); // Add this package: npm install streamifier
+const streamifier = require('streamifier');
 
 // Calculate reading time (approx 200 words per minute)
 const calculateReadingTime = (content) => {
@@ -39,6 +39,10 @@ const uploadToCloudinary = (buffer, folder) => {
 // @access  Private
 const createBlog = async (req, res) => {
   try {
+    console.log('=== CREATE BLOG REQUEST ===');
+    console.log('Body:', req.body);
+    console.log('File:', req.file ? req.file.originalname : 'No file');
+    
     const {
       title,
       content,
@@ -51,83 +55,116 @@ const createBlog = async (req, res) => {
       isPublished
     } = req.body;
 
-    console.log('Received blog data:', { title, content: content?.substring(0, 100), authorName, category });
-
-    if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required' });
+    // Validation
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Blog title is required' });
+    }
+    
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Blog content is required' });
     }
 
-    // Check if slug already exists
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const existingBlog = await Blog.findOne({ slug });
-    if (existingBlog) {
-      return res.status(400).json({ error: 'A blog with similar title already exists' });
-    }
-
-    let featuredImage = null;
-    if (req.file) {
-      try {
-        console.log('Uploading image to Cloudinary...');
-        const result = await uploadToCloudinary(req.file.buffer, 'blogs');
-        featuredImage = {
-          url: result.secure_url,
-          publicId: result.public_id,
-          alt: title
-        };
-        console.log('Image uploaded successfully:', result.secure_url);
-      } catch (uploadError) {
-        console.error('Cloudinary upload error:', uploadError);
-        return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
-      }
-    } else {
+    if (!req.file) {
       return res.status(400).json({ error: 'Featured image is required' });
     }
 
+    // Generate slug from title
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    // Check if slug already exists
+    const existingBlog = await Blog.findOne({ slug });
+    if (existingBlog) {
+      return res.status(400).json({ error: 'A blog with this title already exists' });
+    }
+
+    // Upload image to Cloudinary
+    console.log('Uploading image to Cloudinary...');
+    let featuredImage;
+    try {
+      const result = await uploadToCloudinary(req.file.buffer, 'blogs');
+      featuredImage = {
+        url: result.secure_url,
+        publicId: result.public_id,
+        alt: title
+      };
+      console.log('Image uploaded:', result.secure_url);
+    } catch (uploadError) {
+      console.error('Cloudinary upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload image. Please try again.' });
+    }
+
+    // Calculate reading time and excerpt
     const readingTime = calculateReadingTime(content);
     const excerpt = generateExcerpt(content);
 
-    // Parse tags
+    // Parse tags (handle string or array)
     let tagsArray = [];
     if (tags) {
-      tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim()).filter(t => t);
+      if (typeof tags === 'string') {
+        tagsArray = tags.split(',').map(t => t.trim()).filter(t => t);
+      } else if (Array.isArray(tags)) {
+        tagsArray = tags;
+      }
     }
 
     // Parse SEO keywords
     let seoKeywordsArray = [];
     if (seoKeywords) {
-      seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+      if (typeof seoKeywords === 'string') {
+        seoKeywordsArray = seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+      } else if (Array.isArray(seoKeywords)) {
+        seoKeywordsArray = seoKeywords;
+      }
     }
 
+    // Parse isPublished (handle string, boolean, or undefined)
+    let isPublishedValue = true;
+    if (isPublished !== undefined && isPublished !== null) {
+      if (typeof isPublished === 'string') {
+        isPublishedValue = isPublished === 'true' || isPublished === '1';
+      } else {
+        isPublishedValue = Boolean(isPublished);
+      }
+    }
+
+    // Create blog
     const blog = new Blog({
-      title,
+      title: title.trim(),
       slug,
       content,
       excerpt,
       featuredImage,
       author: {
-        name: authorName || 'Admin'
+        name: authorName && authorName.trim() ? authorName.trim() : 'Admin'
       },
       readingTime,
       tags: tagsArray,
       category: category || 'General',
-      isPublished: isPublished === 'true' || isPublished === true,
+      isPublished: isPublishedValue,
       seo: {
-        metaTitle: seoMetaTitle || title,
-        metaDescription: seoMetaDescription || excerpt,
+        metaTitle: seoMetaTitle && seoMetaTitle.trim() ? seoMetaTitle.trim() : title,
+        metaDescription: seoMetaDescription && seoMetaDescription.trim() ? seoMetaDescription.trim() : excerpt,
         keywords: seoKeywordsArray
       }
     });
 
     await blog.save();
-    console.log('Blog saved successfully:', blog._id);
+    console.log('Blog saved successfully with ID:', blog._id);
 
     res.status(201).json({
       success: true,
+      message: 'Blog created successfully',
       data: blog
     });
   } catch (error) {
     console.error('Create blog error:', error);
-    res.status(500).json({ error: error.message || 'Failed to create blog' });
+    res.status(500).json({ 
+      error: error.message || 'Failed to create blog',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -238,16 +275,20 @@ const updateBlog = async (req, res) => {
       isPublished
     } = req.body;
 
-    if (title && title !== blog.title) {
-      const newSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (title && title.trim() && title !== blog.title) {
+      const newSlug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      
       const existingBlog = await Blog.findOne({ slug: newSlug, _id: { $ne: req.params.id } });
       if (!existingBlog) {
         blog.slug = newSlug;
       }
-      blog.title = title;
+      blog.title = title.trim();
     }
 
-    if (content) {
+    if (content && content.trim()) {
       blog.content = content;
       blog.readingTime = calculateReadingTime(content);
       blog.excerpt = generateExcerpt(content);
@@ -256,11 +297,14 @@ const updateBlog = async (req, res) => {
     if (req.file) {
       // Delete old image from cloudinary
       if (blog.featuredImage && blog.featuredImage.publicId) {
-        await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+        try {
+          await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+        } catch (err) {
+          console.error('Error deleting old image:', err);
+        }
       }
       
       const result = await uploadToCloudinary(req.file.buffer, 'blogs');
-      
       blog.featuredImage = {
         url: result.secure_url,
         publicId: result.public_id,
@@ -268,29 +312,47 @@ const updateBlog = async (req, res) => {
       };
     }
 
-    if (authorName) blog.author.name = authorName;
-    if (tags) {
-      blog.tags = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim()).filter(t => t);
-    }
-    if (category) blog.category = category;
-    if (isPublished !== undefined) blog.isPublished = isPublished === 'true' || isPublished === true;
+    if (authorName && authorName.trim()) blog.author.name = authorName.trim();
     
-    if (seoMetaTitle || seoMetaDescription || seoKeywords) {
-      let seoKeywordsArray = [];
-      if (seoKeywords) {
-        seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+    if (tags) {
+      if (typeof tags === 'string') {
+        blog.tags = tags.split(',').map(t => t.trim()).filter(t => t);
+      } else if (Array.isArray(tags)) {
+        blog.tags = tags;
       }
-      blog.seo = {
-        metaTitle: seoMetaTitle || blog.seo?.metaTitle || blog.title,
-        metaDescription: seoMetaDescription || blog.seo?.metaDescription || blog.excerpt,
-        keywords: seoKeywordsArray.length ? seoKeywordsArray : blog.seo?.keywords || []
-      };
     }
+    
+    if (category) blog.category = category;
+    
+    if (isPublished !== undefined && isPublished !== null) {
+      if (typeof isPublished === 'string') {
+        blog.isPublished = isPublished === 'true' || isPublished === '1';
+      } else {
+        blog.isPublished = Boolean(isPublished);
+      }
+    }
+    
+    // Update SEO
+    let seoKeywordsArray = blog.seo?.keywords || [];
+    if (seoKeywords) {
+      if (typeof seoKeywords === 'string') {
+        seoKeywordsArray = seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+      } else if (Array.isArray(seoKeywords)) {
+        seoKeywordsArray = seoKeywords;
+      }
+    }
+    
+    blog.seo = {
+      metaTitle: seoMetaTitle && seoMetaTitle.trim() ? seoMetaTitle.trim() : blog.seo?.metaTitle || blog.title,
+      metaDescription: seoMetaDescription && seoMetaDescription.trim() ? seoMetaDescription.trim() : blog.seo?.metaDescription || blog.excerpt,
+      keywords: seoKeywordsArray
+    };
 
     await blog.save();
 
     res.json({
       success: true,
+      message: 'Blog updated successfully',
       data: blog
     });
   } catch (error) {
@@ -312,7 +374,11 @@ const deleteBlog = async (req, res) => {
 
     // Delete image from cloudinary
     if (blog.featuredImage && blog.featuredImage.publicId) {
-      await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+      try {
+        await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+      } catch (err) {
+        console.error('Error deleting image:', err);
+      }
     }
 
     await blog.deleteOne();
@@ -343,6 +409,7 @@ const togglePublish = async (req, res) => {
 
     res.json({
       success: true,
+      message: `Blog ${blog.isPublished ? 'published' : 'unpublished'} successfully`,
       data: blog
     });
   } catch (error) {
