@@ -21,19 +21,31 @@ const blogSchema = new mongoose.Schema({
   excerpt: {
     type: String,
     required: [true, 'Blog excerpt is required'],
-    maxlength: [300, 'Excerpt cannot exceed 300 characters']
+    maxlength: [500, 'Excerpt cannot exceed 500 characters']
   },
   featuredImage: {
-    url: String,
-    publicId: String,
-    alt: String
+    url: {
+      type: String,
+      required: true
+    },
+    publicId: {
+      type: String,
+      required: true
+    },
+    alt: {
+      type: String,
+      default: ''
+    }
   },
   author: {
     name: {
       type: String,
       default: 'Admin'
     },
-    avatar: String
+    avatar: {
+      type: String,
+      default: ''
+    }
   },
   readingTime: {
     type: Number,
@@ -51,16 +63,15 @@ const blogSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  isFeatured: {
-    type: Boolean,
-    default: false
-  },
   views: {
     type: Number,
     default: 0
   },
-  metaTitle: String,
-  metaDescription: String,
+  seo: {
+    metaTitle: String,
+    metaDescription: String,
+    keywords: [String]
+  },
   publishedAt: {
     type: Date,
     default: Date.now
@@ -69,13 +80,13 @@ const blogSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create slug from title before saving
+// Generate slug from title before saving
 blogSchema.pre('save', function(next) {
   if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
   }
   next();
 });
