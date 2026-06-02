@@ -50,6 +50,21 @@ exports.createBlog = async (req, res) => {
       };
     }
 
+    // Parse tags and keywords if they are strings
+    let parsedTags = [];
+    let parsedSeoKeywords = [];
+    
+    try {
+      if (tags) {
+        parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      }
+      if (seoKeywords) {
+        parsedSeoKeywords = typeof seoKeywords === 'string' ? JSON.parse(seoKeywords) : seoKeywords;
+      }
+    } catch (e) {
+      console.error('Error parsing tags/seoKeywords:', e);
+    }
+
     const blog = new Blog({
       title,
       slug,
@@ -60,13 +75,13 @@ exports.createBlog = async (req, res) => {
         name: authorName || 'Admin'
       },
       readingTime,
-      tags: tags ? JSON.parse(tags) : [],
+      tags: parsedTags,
       category: category || 'General',
       isPublished: true,
       publishedAt: new Date(),
       metaTitle: metaTitle || title,
       metaDescription: metaDescription || excerpt || content.substring(0, 160).replace(/<[^>]*>/g, ''),
-      seoKeywords: seoKeywords ? JSON.parse(seoKeywords) : []
+      seoKeywords: parsedSeoKeywords
     });
 
     await blog.save();
@@ -208,18 +223,39 @@ exports.updateBlog = async (req, res) => {
     
     if (excerpt) blog.excerpt = excerpt;
     if (authorName) blog.author.name = authorName;
-    if (tags) blog.tags = JSON.parse(tags);
+    
+    // Parse tags
+    if (tags) {
+      try {
+        blog.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      } catch (e) {
+        blog.tags = [];
+      }
+    }
+    
     if (category) blog.category = category;
     if (isPublished !== undefined) blog.isPublished = isPublished;
     if (metaTitle) blog.metaTitle = metaTitle;
     if (metaDescription) blog.metaDescription = metaDescription;
-    if (seoKeywords) blog.seoKeywords = JSON.parse(seoKeywords);
+    
+    // Parse seo keywords
+    if (seoKeywords) {
+      try {
+        blog.seoKeywords = typeof seoKeywords === 'string' ? JSON.parse(seoKeywords) : seoKeywords;
+      } catch (e) {
+        blog.seoKeywords = [];
+      }
+    }
     
     // Update featured image if provided
     if (req.file) {
       // Delete old image from cloudinary
-      if (blog.featuredImage?.publicId) {
-        await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+      if (blog.featuredImage && blog.featuredImage.publicId) {
+        try {
+          await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+        } catch (err) {
+          console.error('Error deleting old image:', err);
+        }
       }
       
       blog.featuredImage = {
@@ -253,8 +289,12 @@ exports.deleteBlog = async (req, res) => {
     }
     
     // Delete image from cloudinary
-    if (blog.featuredImage?.publicId) {
-      await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+    if (blog.featuredImage && blog.featuredImage.publicId) {
+      try {
+        await cloudinary.uploader.destroy(blog.featuredImage.publicId);
+      } catch (err) {
+        console.error('Error deleting image:', err);
+      }
     }
     
     await blog.deleteOne();
