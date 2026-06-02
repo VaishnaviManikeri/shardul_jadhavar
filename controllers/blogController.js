@@ -10,7 +10,9 @@ const uploadToCloudinary = async (filePath, folder = 'blogs') => {
       use_filename: true,
     });
     // Delete local file after upload
-    fs.unlinkSync(filePath);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
     return {
       url: result.secure_url,
       publicId: result.public_id,
@@ -62,6 +64,35 @@ exports.createBlog = async (req, res) => {
       featuredImage = await uploadToCloudinary(req.file.path);
     }
     
+    // Parse JSON fields
+    let parsedTags = [];
+    let parsedSeo = {};
+    let parsedAuthor = { name: 'Admin', avatar: '' };
+    
+    if (tags) {
+      try {
+        parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      } catch (e) {
+        parsedTags = tags.split(',').map(tag => tag.trim());
+      }
+    }
+    
+    if (seo) {
+      try {
+        parsedSeo = typeof seo === 'string' ? JSON.parse(seo) : seo;
+      } catch (e) {
+        parsedSeo = seo;
+      }
+    }
+    
+    if (author) {
+      try {
+        parsedAuthor = typeof author === 'string' ? JSON.parse(author) : author;
+      } catch (e) {
+        parsedAuthor = author;
+      }
+    }
+    
     const blog = new Blog({
       title,
       slug,
@@ -69,13 +100,10 @@ exports.createBlog = async (req, res) => {
       excerpt,
       readingTime,
       featuredImage,
-      author: {
-        name: author?.name || 'Admin',
-        avatar: author?.avatar || '',
-      },
-      tags: tags ? JSON.parse(tags) : [],
+      author: parsedAuthor,
+      tags: parsedTags,
       category: category || 'General',
-      seo: seo ? JSON.parse(seo) : {
+      seo: parsedSeo || {
         metaTitle: title,
         metaDescription: excerpt,
       },
@@ -107,18 +135,22 @@ exports.getAllBlogs = async (req, res) => {
     
     let query = { isPublished: true };
     
-    if (category && category !== 'all') {
+    if (category && category !== 'all' && category !== 'undefined') {
       query.category = category;
     }
     
-    if (tag) {
+    if (tag && tag !== 'undefined') {
       query.tags = tag;
     }
     
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+    
     const blogs = await Blog.find(query)
       .sort({ publishedAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(limitNum)
+      .skip(skip)
       .select('-content');
     
     const total = await Blog.countDocuments(query);
@@ -126,8 +158,8 @@ exports.getAllBlogs = async (req, res) => {
     res.status(200).json({
       success: true,
       data: blogs,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
       total,
     });
   } catch (error) {
@@ -264,15 +296,45 @@ exports.updateBlog = async (req, res) => {
       featuredImage = await uploadToCloudinary(req.file.path);
     }
     
+    // Parse JSON fields
+    let parsedTags = blog.tags;
+    let parsedSeo = blog.seo;
+    let parsedAuthor = blog.author;
+    let parsedIsPublished = isPublished !== undefined ? isPublished === 'true' || isPublished === true : blog.isPublished;
+    
+    if (tags) {
+      try {
+        parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      } catch (e) {
+        parsedTags = tags.split(',').map(tag => tag.trim());
+      }
+    }
+    
+    if (seo) {
+      try {
+        parsedSeo = typeof seo === 'string' ? JSON.parse(seo) : seo;
+      } catch (e) {
+        parsedSeo = seo;
+      }
+    }
+    
+    if (author) {
+      try {
+        parsedAuthor = typeof author === 'string' ? JSON.parse(author) : author;
+      } catch (e) {
+        parsedAuthor = author;
+      }
+    }
+    
     const updatedData = {
       ...(title && { title, slug }),
       ...(content && { content, readingTime }),
       ...(excerpt && { excerpt }),
-      ...(author && { author: { name: author.name, avatar: author.avatar } }),
-      ...(tags && { tags: JSON.parse(tags) }),
+      ...(parsedAuthor && { author: parsedAuthor }),
+      ...(parsedTags && { tags: parsedTags }),
       ...(category && { category }),
-      ...(seo && { seo: JSON.parse(seo) }),
-      ...(isPublished !== undefined && { isPublished }),
+      ...(parsedSeo && { seo: parsedSeo }),
+      isPublished: parsedIsPublished,
       ...(featuredImage && { featuredImage }),
       updatedAt: Date.now(),
     };

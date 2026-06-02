@@ -34,11 +34,11 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-// Public routes
+// Public routes (no authentication)
 router.get('/', blogController.getAllBlogs);
 router.get('/:slug', blogController.getBlogBySlug);
 
-// Admin routes
+// Admin routes (with authentication)
 router.get('/admin/all', authMiddleware, blogController.getAllBlogsAdmin);
 router.get('/admin/:id', authMiddleware, blogController.getBlogById);
 router.post('/', authMiddleware, upload.single('featuredImage'), blogController.createBlog);
