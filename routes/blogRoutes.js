@@ -4,12 +4,12 @@ const blogController = require('../controllers/blogController');
 const authMiddleware = require('../middleware/auth');
 const { uploadBlogImage } = require('../middleware/uploadBlog');
 
-// Public routes
+// Public routes (no authentication)
 router.get('/', blogController.getAllBlogs);
 router.get('/categories/all', blogController.getCategories);
 router.get('/:slug', blogController.getBlogBySlug);
 
-// Admin routes (protected)
+// Admin routes (with authentication)
 router.get('/admin/all', authMiddleware, blogController.getAllBlogsAdmin);
 router.get('/admin/:id', authMiddleware, blogController.getBlogById);
 router.post('/', authMiddleware, uploadBlogImage.single('featuredImage'), blogController.createBlog);
