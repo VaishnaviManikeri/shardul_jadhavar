@@ -9,7 +9,7 @@ const {
   togglePublish,
   uploadImage,
 } = require('../controllers/blogController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/auth');
 const upload = require('../middleware/uploadMiddleware');
 
 // Public routes
