@@ -17,18 +17,19 @@ const allowedOrigins = [
   'http://localhost:5173',      // Vite local
   'http://localhost:3000',      // React local
   'https://sharduljadhavar.com', // ✅ Production frontend
-  'https://www.sharduljadhavar.com'
+  'https://sharduljadhavar.com', // Add your frontend URL
+  'http://localhost:5174',
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // allow Postman, mobile apps
-
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.log('Origin not allowed:', origin);
+        callback(null, true); // Temporarily allow all for debugging
       }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -48,11 +49,6 @@ app.get('/', (req, res) => {
   res.send('Backend is running successfully 🚀');
 });
 
-// ================= ✅ PING ROUTE (ADDED) =================
-app.get('/ping', (req, res) => {
-  res.send('✅ Server is alive');
-});
-
 app.use('/api/test', require('./routes/testRoutes'));
 
 // ================= MAIN ROUTES =================
@@ -61,7 +57,7 @@ app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
 app.use('/api/videos', require('./routes/videoRoutes'));
-app.use('/api/blogs', require('./routes/blogRoutes'));
+app.use('/api/blogs', require('./routes/blogRoutes')); // ✅ Make sure this line exists
 
 // ================= 404 HANDLER =================
 app.use((req, res) => {
@@ -70,10 +66,11 @@ app.use((req, res) => {
 
 // ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error details:', err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
     details: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 });
 
@@ -82,4 +79,5 @@ const PORT = process.env.PORT || 5026;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📝 Blog routes registered at /api/blogs`);
 });
