@@ -3,89 +3,85 @@ const mongoose = require('mongoose');
 const blogSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: [true, 'Blog title is required'],
+    required: [true, 'Title is required'],
     trim: true,
-    maxlength: [200, 'Title cannot exceed 200 characters']
+    unique: true,
   },
   slug: {
     type: String,
     required: true,
     unique: true,
     lowercase: true,
-    trim: true
+    trim: true,
   },
   content: {
     type: String,
-    required: [true, 'Blog content is required']
+    required: [true, 'Content is required'],
   },
   excerpt: {
     type: String,
-    required: [true, 'Blog excerpt is required'],
-    maxlength: [500, 'Excerpt cannot exceed 500 characters']
+    required: [true, 'Excerpt is required'],
+    maxLength: 200,
   },
   featuredImage: {
-    url: {
-      type: String,
-      required: true
-    },
-    publicId: {
-      type: String,
-      required: true
-    },
-    alt: {
-      type: String,
-      default: ''
-    }
+    url: String,
+    publicId: String,
   },
   author: {
     name: {
       type: String,
-      default: 'Admin'
+      default: 'Shardul Jadhavar',
     },
-    avatar: {
-      type: String,
-      default: ''
-    }
+    avatar: String,
   },
   readingTime: {
     type: Number,
-    default: 5
+    default: 5,
   },
   tags: [{
     type: String,
-    trim: true
+    trim: true,
   }],
   category: {
     type: String,
-    default: 'General'
+    default: 'General',
   },
   isPublished: {
     type: Boolean,
-    default: true
+    default: true,
+  },
+  isFeatured: {
+    type: Boolean,
+    default: false,
   },
   views: {
     type: Number,
-    default: 0
+    default: 0,
+  },
+  likes: {
+    type: Number,
+    default: 0,
   },
   seo: {
     metaTitle: String,
     metaDescription: String,
-    keywords: [String]
+    metaKeywords: String,
   },
   publishedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 }, {
-  timestamps: true
+  timestamps: true,
 });
 
-// Generate slug from title before saving
+// Create slug from title before saving
 blogSchema.pre('save', function(next) {
   if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
   }
   next();
