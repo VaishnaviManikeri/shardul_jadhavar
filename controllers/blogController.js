@@ -1,5 +1,6 @@
 const Blog = require('../models/Blog');
 const cloudinary = require('../config/cloudinary');
+const streamifier = require('streamifier'); // Add this package: npm install streamifier
 
 // Calculate reading time (approx 200 words per minute)
 const calculateReadingTime = (content) => {
@@ -16,6 +17,23 @@ const generateExcerpt = (content, maxLength = 500) => {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 };
 
+// Helper function to upload buffer to Cloudinary
+const uploadToCloudinary = (buffer, folder) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        transformation: [{ width: 1200, height: 630, crop: 'fill' }]
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(uploadStream);
+  });
+};
+
 // @desc    Create a new blog
 // @route   POST /api/blogs
 // @access  Private
@@ -29,8 +47,11 @@ const createBlog = async (req, res) => {
       category,
       seoMetaTitle,
       seoMetaDescription,
-      seoKeywords
+      seoKeywords,
+      isPublished
     } = req.body;
+
+    console.log('Received blog data:', { title, content: content?.substring(0, 100), authorName, category });
 
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
@@ -45,21 +66,37 @@ const createBlog = async (req, res) => {
 
     let featuredImage = null;
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'blogs',
-        transformation: [{ width: 1200, height: 630, crop: 'fill' }]
-      });
-      featuredImage = {
-        url: result.secure_url,
-        publicId: result.public_id,
-        alt: title
-      };
+      try {
+        console.log('Uploading image to Cloudinary...');
+        const result = await uploadToCloudinary(req.file.buffer, 'blogs');
+        featuredImage = {
+          url: result.secure_url,
+          publicId: result.public_id,
+          alt: title
+        };
+        console.log('Image uploaded successfully:', result.secure_url);
+      } catch (uploadError) {
+        console.error('Cloudinary upload error:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
+      }
     } else {
       return res.status(400).json({ error: 'Featured image is required' });
     }
 
     const readingTime = calculateReadingTime(content);
     const excerpt = generateExcerpt(content);
+
+    // Parse tags
+    let tagsArray = [];
+    if (tags) {
+      tagsArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim()).filter(t => t);
+    }
+
+    // Parse SEO keywords
+    let seoKeywordsArray = [];
+    if (seoKeywords) {
+      seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+    }
 
     const blog = new Blog({
       title,
@@ -71,16 +108,18 @@ const createBlog = async (req, res) => {
         name: authorName || 'Admin'
       },
       readingTime,
-      tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : [],
+      tags: tagsArray,
       category: category || 'General',
+      isPublished: isPublished === 'true' || isPublished === true,
       seo: {
         metaTitle: seoMetaTitle || title,
         metaDescription: seoMetaDescription || excerpt,
-        keywords: seoKeywords ? (Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim())) : []
+        keywords: seoKeywordsArray
       }
     });
 
     await blog.save();
+    console.log('Blog saved successfully:', blog._id);
 
     res.status(201).json({
       success: true,
@@ -101,7 +140,7 @@ const getAllBlogs = async (req, res) => {
     
     let query = { isPublished: true };
     
-    if (category) {
+    if (category && category !== 'all') {
       query.category = category;
     }
     
@@ -220,10 +259,7 @@ const updateBlog = async (req, res) => {
         await cloudinary.uploader.destroy(blog.featuredImage.publicId);
       }
       
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: 'blogs',
-        transformation: [{ width: 1200, height: 630, crop: 'fill' }]
-      });
+      const result = await uploadToCloudinary(req.file.buffer, 'blogs');
       
       blog.featuredImage = {
         url: result.secure_url,
@@ -233,15 +269,21 @@ const updateBlog = async (req, res) => {
     }
 
     if (authorName) blog.author.name = authorName;
-    if (tags) blog.tags = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+    if (tags) {
+      blog.tags = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim()).filter(t => t);
+    }
     if (category) blog.category = category;
     if (isPublished !== undefined) blog.isPublished = isPublished === 'true' || isPublished === true;
     
     if (seoMetaTitle || seoMetaDescription || seoKeywords) {
+      let seoKeywordsArray = [];
+      if (seoKeywords) {
+        seoKeywordsArray = Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim()).filter(k => k);
+      }
       blog.seo = {
         metaTitle: seoMetaTitle || blog.seo?.metaTitle || blog.title,
         metaDescription: seoMetaDescription || blog.seo?.metaDescription || blog.excerpt,
-        keywords: seoKeywords ? (Array.isArray(seoKeywords) ? seoKeywords : seoKeywords.split(',').map(k => k.trim())) : blog.seo?.keywords || []
+        keywords: seoKeywordsArray.length ? seoKeywordsArray : blog.seo?.keywords || []
       };
     }
 
