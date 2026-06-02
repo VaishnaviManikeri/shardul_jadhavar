@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 
-// Use memoryStorage instead of diskStorage for Cloudinary
+// Use memoryStorage for Cloudinary
 const storage = multer.memoryStorage();
 
 // File filter
@@ -13,7 +13,7 @@ const fileFilter = (req, file, cb) => {
   if (mimetype && extname) {
     return cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed'));
+    cb(new Error('Only image files (jpeg, jpg, png, gif, webp) are allowed'));
   }
 };
 
