@@ -74,6 +74,21 @@ const blogSchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+<<<<<<< HEAD
+
+// Create slug from title before saving
+blogSchema.pre('save', function(next) {
+  if (this.isModified('title')) {
+    this.slug = this.title
+      .toLowerCase()
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+  next();
+});
+=======
+>>>>>>> 78893022d6d92916ba0e87ab86b32c0c25dd1549
 
 // Create slug from title before saving
 blogSchema.pre('save', function(next) {
