@@ -16,20 +16,18 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',      // Vite local
   'http://localhost:3000',      // React local
-  'https://sharduljadhavar.com', // ✅ Production frontend
-  'https://sharduljadhavar.com', // Add your frontend URL
-  'http://localhost:5174',
+  'https://sharduljadhavar.com' // ✅ Production frontend
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // allow Postman, mobile apps
+
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.log('Origin not allowed:', origin);
-        callback(null, true); // Temporarily allow all for debugging
+        callback(new Error('Not allowed by CORS'));
       }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -57,12 +55,7 @@ app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
 app.use('/api/videos', require('./routes/videoRoutes'));
-<<<<<<< HEAD
 app.use('/api/blogs', require('./routes/blogRoutes'));
-=======
-app.use('/api/blogs', require('./routes/blogRoutes')); // ✅ Make sure this line exists
-
->>>>>>> 78893022d6d92916ba0e87ab86b32c0c25dd1549
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({ error: 'API route not found' });
@@ -70,11 +63,10 @@ app.use((req, res) => {
 
 // ================= ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error('Error details:', err.stack);
+  console.error(err.stack);
   res.status(500).json({
     error: 'Something went wrong!',
     details: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 });
 
@@ -83,5 +75,4 @@ const PORT = process.env.PORT || 5026;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📝 Blog routes registered at /api/blogs`);
 });

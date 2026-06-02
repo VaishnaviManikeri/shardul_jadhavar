@@ -5,14 +5,13 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Title is required'],
     trim: true,
-    unique: true,
   },
   slug: {
     type: String,
     required: true,
     unique: true,
-    lowercase: true,
     trim: true,
+    lowercase: true,
   },
   content: {
     type: String,
@@ -21,7 +20,7 @@ const blogSchema = new mongoose.Schema({
   excerpt: {
     type: String,
     required: [true, 'Excerpt is required'],
-    maxLength: 200,
+    maxlength: 200,
   },
   featuredImage: {
     url: String,
@@ -30,7 +29,7 @@ const blogSchema = new mongoose.Schema({
   author: {
     name: {
       type: String,
-      default: 'Shardul Jadhavar',
+      default: 'Admin',
     },
     avatar: String,
   },
@@ -38,10 +37,7 @@ const blogSchema = new mongoose.Schema({
     type: Number,
     default: 5,
   },
-  tags: [{
-    type: String,
-    trim: true,
-  }],
+  tags: [String],
   category: {
     type: String,
     default: 'General',
@@ -50,49 +46,33 @@ const blogSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
-  isFeatured: {
-    type: Boolean,
-    default: false,
-  },
   views: {
-    type: Number,
-    default: 0,
-  },
-  likes: {
     type: Number,
     default: 0,
   },
   seo: {
     metaTitle: String,
     metaDescription: String,
-    metaKeywords: String,
+    keywords: [String],
   },
   publishedAt: {
     type: Date,
     default: Date.now,
   },
-}, {
-  timestamps: true,
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
-<<<<<<< HEAD
 
-// Create slug from title before saving
+// Update slug before saving
 blogSchema.pre('save', function(next) {
-  if (this.isModified('title')) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^a-zA-Z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  }
-  next();
-});
-=======
->>>>>>> 78893022d6d92916ba0e87ab86b32c0c25dd1549
-
-// Create slug from title before saving
-blogSchema.pre('save', function(next) {
-  if (this.isModified('title')) {
+  this.updatedAt = Date.now();
+  if (this.isModified('title') && !this.slug) {
     this.slug = this.title
       .toLowerCase()
       .replace(/[^a-zA-Z0-9]/g, '-')
