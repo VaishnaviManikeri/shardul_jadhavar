@@ -5,74 +5,63 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Title is required'],
     trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters']
   },
   slug: {
     type: String,
     required: true,
     unique: true,
-    trim: true,
     lowercase: true,
+    trim: true
+  },
+  metaTitle: {
+    type: String,
+    maxlength: [160, 'Meta title cannot exceed 160 characters']
+  },
+  metaDescription: {
+    type: String,
+    maxlength: [320, 'Meta description cannot exceed 320 characters']
   },
   content: {
     type: String,
-    required: [true, 'Content is required'],
-  },
-  excerpt: {
-    type: String,
-    required: [true, 'Excerpt is required'],
-    maxlength: 200,
+    required: [true, 'Content is required']
   },
   featuredImage: {
-    url: String,
-    publicId: String,
+    type: String,
+    required: [true, 'Featured image is required']
   },
   author: {
-    name: {
-      type: String,
-      default: 'Admin',
-    },
-    avatar: String,
+    type: String,
+    required: [true, 'Author name is required'],
+    default: 'Admin'
   },
   readingTime: {
     type: Number,
-    default: 5,
+    default: 5
   },
-  tags: [String],
-  category: {
+  tags: [{
     type: String,
-    default: 'General',
-  },
-  isPublished: {
+    trim: true
+  }],
+  published: {
     type: Boolean,
-    default: true,
+    default: true
   },
   views: {
     type: Number,
-    default: 0,
+    default: 0
   },
-  seo: {
-    metaTitle: String,
-    metaDescription: String,
-    keywords: [String],
-  },
-  publishedAt: {
-    type: Date,
-    default: Date.now,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
+  seoScore: {
+    type: Number,
+    default: 0
+  }
+}, {
+  timestamps: true
 });
 
-// Update slug before saving
+// Generate slug before saving
 blogSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  if (this.isModified('title') && !this.slug) {
+  if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()
       .replace(/[^a-zA-Z0-9]/g, '-')

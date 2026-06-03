@@ -55,6 +55,7 @@ app.use('/api/gallery', require('./routes/galleryRoutes'));
 app.use('/api/announcements', require('./routes/announcementRoutes'));
 app.use('/api/careers', require('./routes/careerRoutes'));
 app.use('/api/videos', require('./routes/videoRoutes'));
+// Add this line with other routes
 app.use('/api/blogs', require('./routes/blogRoutes'));
 // ================= 404 HANDLER =================
 app.use((req, res) => {

@@ -2,18 +2,31 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const blogController = require('../controllers/blogController');
-const authMiddleware = require('../middleware/auth');
+const fs = require('fs');
+const auth = require('../middleware/auth');
+const {
+  getAllBlogs,
+  getBlogBySlug,
+  getAllBlogsAdmin,
+  createBlog,
+  updateBlog,
+  deleteBlog,
+  togglePublish
+} = require('../controllers/blogController');
 
-// Configure multer for file upload
+// Configure multer for blog image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    const dir = path.join(__dirname, '../uploads/blogs');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'blog-' + uniqueSuffix + path.extname(file.originalname));
-  },
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `blog-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
 });
 
 const fileFilter = (req, file, cb) => {
@@ -22,7 +35,7 @@ const fileFilter = (req, file, cb) => {
   const mimetype = allowedTypes.test(file.mimetype);
   
   if (mimetype && extname) {
-    return cb(null, true);
+    cb(null, true);
   } else {
     cb(new Error('Only image files are allowed'));
   }
@@ -31,19 +44,18 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: fileFilter,
+  fileFilter: fileFilter
 });
 
-// Public routes (no authentication)
-router.get('/', blogController.getAllBlogs);
-router.get('/:slug', blogController.getBlogBySlug);
+// Public routes
+router.get('/', getAllBlogs);
+router.get('/:slug', getBlogBySlug);
 
-// Admin routes (with authentication)
-router.get('/admin/all', authMiddleware, blogController.getAllBlogsAdmin);
-router.get('/admin/:id', authMiddleware, blogController.getBlogById);
-router.post('/', authMiddleware, upload.single('featuredImage'), blogController.createBlog);
-router.put('/:id', authMiddleware, upload.single('featuredImage'), blogController.updateBlog);
-router.delete('/:id', authMiddleware, blogController.deleteBlog);
-router.patch('/:id/toggle-publish', authMiddleware, blogController.togglePublish);
+// Admin routes
+router.get('/admin/all', auth, getAllBlogsAdmin);
+router.post('/', auth, upload.single('featuredImage'), createBlog);
+router.put('/:id', auth, upload.single('featuredImage'), updateBlog);
+router.delete('/:id', auth, deleteBlog);
+router.patch('/:id/toggle-publish', auth, togglePublish);
 
 module.exports = router;
