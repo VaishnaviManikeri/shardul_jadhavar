@@ -11,51 +11,45 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Content is required']
   },
-  author: {
-    type: String,
-    required: [true, 'Author name is required'],
-    default: 'Admin'
-  },
   featuredImage: {
     type: String,
-    required: [true, 'Featured image is required']
+    default: ''
   },
-  images: [{
-    type: String
-  }],
+  author: {
+    type: String,
+    default: 'Admin'
+  },
   readingTime: {
     type: Number,
     default: 5
   },
   metaTitle: {
     type: String,
-    maxlength: [60, 'Meta title cannot exceed 60 characters']
+    trim: true,
+    maxlength: [160, 'Meta title cannot exceed 160 characters']
   },
   metaDescription: {
     type: String,
-    maxlength: [160, 'Meta description cannot exceed 160 characters']
+    trim: true,
+    maxlength: [320, 'Meta description cannot exceed 320 characters']
   },
   isPublished: {
     type: Boolean,
     default: true
   },
-  viewCount: {
+  views: {
     type: Number,
     default: 0
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
+  publishedAt: {
     type: Date,
     default: Date.now
   }
+}, {
+  timestamps: true
 });
 
-blogSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
+// Create index for search
+blogSchema.index({ title: 'text', content: 'text' });
 
 module.exports = mongoose.model('Blog', blogSchema);
