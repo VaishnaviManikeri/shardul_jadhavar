@@ -7,67 +7,54 @@ const blogSchema = new mongoose.Schema({
     trim: true,
     maxlength: [200, 'Title cannot exceed 200 characters']
   },
-  slug: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
-  metaTitle: {
-    type: String,
-    maxlength: [160, 'Meta title cannot exceed 160 characters']
-  },
-  metaDescription: {
-    type: String,
-    maxlength: [320, 'Meta description cannot exceed 320 characters']
-  },
   content: {
     type: String,
     required: [true, 'Content is required']
-  },
-  featuredImage: {
-    type: String,
-    required: [true, 'Featured image is required']
   },
   author: {
     type: String,
     required: [true, 'Author name is required'],
     default: 'Admin'
   },
+  featuredImage: {
+    type: String,
+    required: [true, 'Featured image is required']
+  },
+  images: [{
+    type: String
+  }],
   readingTime: {
     type: Number,
     default: 5
   },
-  tags: [{
+  metaTitle: {
     type: String,
-    trim: true
-  }],
-  published: {
+    maxlength: [60, 'Meta title cannot exceed 60 characters']
+  },
+  metaDescription: {
+    type: String,
+    maxlength: [160, 'Meta description cannot exceed 160 characters']
+  },
+  isPublished: {
     type: Boolean,
     default: true
   },
-  views: {
+  viewCount: {
     type: Number,
     default: 0
   },
-  seoScore: {
-    type: Number,
-    default: 0
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Generate slug before saving
 blogSchema.pre('save', function(next) {
-  if (this.isModified('title')) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^a-zA-Z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  }
+  this.updatedAt = Date.now();
   next();
 });
 
