@@ -395,6 +395,7 @@ exports.deleteBlog = async (req, res) => {
 // @desc    Toggle publish status
 // @route   PATCH /api/blogs/:id/toggle-publish
 // @access  Private
+// Make sure the togglePublish function has the correct endpoint
 exports.togglePublish = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -406,6 +407,9 @@ exports.togglePublish = async (req, res) => {
     }
     
     blog.isPublished = !blog.isPublished;
+    if (blog.isPublished) {
+      blog.publishedAt = Date.now();
+    }
     blog.updatedAt = Date.now();
     await blog.save();
     
