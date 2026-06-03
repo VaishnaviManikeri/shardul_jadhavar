@@ -11,35 +11,54 @@ const blogSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Content is required']
   },
+  excerpt: {
+    type: String,
+    maxlength: [300, 'Excerpt cannot exceed 300 characters']
+  },
   featuredImage: {
     type: String,
-    default: ''
+    required: [true, 'Featured image is required']
   },
   author: {
     type: String,
+    required: [true, 'Author name is required'],
     default: 'Admin'
+  },
+  authorImage: {
+    type: String,
+    default: null
   },
   readingTime: {
     type: Number,
     default: 5
   },
-  metaTitle: {
+  tags: [{
     type: String,
-    trim: true,
-    maxlength: [160, 'Meta title cannot exceed 160 characters']
-  },
-  metaDescription: {
+    trim: true
+  }],
+  category: {
     type: String,
-    trim: true,
-    maxlength: [320, 'Meta description cannot exceed 320 characters']
+    default: 'General'
   },
   isPublished: {
     type: Boolean,
     default: true
   },
+  isFeatured: {
+    type: Boolean,
+    default: false
+  },
   views: {
     type: Number,
     default: 0
+  },
+  metaTitle: {
+    type: String,
+    trim: true
+  },
+  metaDescription: {
+    type: String,
+    trim: true
   },
   publishedAt: {
     type: Date,
@@ -50,6 +69,27 @@ const blogSchema = new mongoose.Schema({
 });
 
 // Create index for search
-blogSchema.index({ title: 'text', content: 'text' });
+blogSchema.index({ title: 'text', content: 'text', tags: 'text' });
+
+// Generate excerpt from content if not provided
+blogSchema.pre('save', function(next) {
+  if (!this.excerpt && this.content) {
+    // Remove HTML tags and get plain text
+    const plainText = this.content.replace(/<[^>]*>/g, '');
+    this.excerpt = plainText.substring(0, 250) + (plainText.length > 250 ? '...' : '');
+  }
+  
+  // Generate meta title if not provided
+  if (!this.metaTitle) {
+    this.metaTitle = this.title;
+  }
+  
+  // Generate meta description if not provided
+  if (!this.metaDescription && this.excerpt) {
+    this.metaDescription = this.excerpt.substring(0, 160);
+  }
+  
+  next();
+});
 
 module.exports = mongoose.model('Blog', blogSchema);
