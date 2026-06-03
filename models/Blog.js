@@ -72,7 +72,7 @@ const blogSchema = new mongoose.Schema({
 blogSchema.index({ title: 'text', content: 'text', tags: 'text' });
 
 // Generate excerpt from content if not provided
-blogSchema.pre('save', function(next) {
+blogSchema.pre('save', function() {
   if (!this.excerpt && this.content) {
     // Remove HTML tags and get plain text
     const plainText = this.content.replace(/<[^>]*>/g, '');
@@ -88,8 +88,6 @@ blogSchema.pre('save', function(next) {
   if (!this.metaDescription && this.excerpt) {
     this.metaDescription = this.excerpt.substring(0, 160);
   }
-  
-  next();
 });
 
 module.exports = mongoose.model('Blog', blogSchema);
