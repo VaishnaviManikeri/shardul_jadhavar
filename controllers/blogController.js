@@ -7,19 +7,23 @@ const fs = require('fs');
 // @access  Private (Admin only)
 exports.createBlog = async (req, res) => {
   try {
-    const { title, content, excerpt, author, authorImage, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
+    console.log('Received blog data:', req.body);
+    console.log('Received file:', req.file);
     
-    // Validate required fields
-    if (!title) {
+    const { title, content, excerpt, author, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
+    
+    // Check if featured image was uploaded
+    if (!req.file) {
+      return res.status(400).json({ error: 'Featured image is required' });
+    }
+    
+    // Check required fields
+    if (!title || !title.trim()) {
       return res.status(400).json({ error: 'Title is required' });
     }
     
-    if (!content) {
+    if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Content is required' });
-    }
-    
-    if (!req.file) {
-      return res.status(400).json({ error: 'Featured image is required' });
     }
     
     // Calculate reading time (approx 200 words per minute)
@@ -41,19 +45,18 @@ exports.createBlog = async (req, res) => {
     const isFeaturedValue = isFeatured === 'true' || isFeatured === true;
     
     const blog = new Blog({
-      title,
+      title: title.trim(),
       content,
-      excerpt,
+      excerpt: excerpt || '',
       featuredImage: `/uploads/blogs/${req.file.filename}`,
       author: author || 'Admin',
-      authorImage: authorImage || null,
       readingTime,
-      tags: tags ? JSON.parse(tags) : [],
+      tags: tagsArray,
       category: category || 'General',
-      isPublished: isPublished === 'true' || isPublished === true,
-      isFeatured: isFeatured === 'true' || isFeatured === true,
-      metaTitle,
-      metaDescription
+      isPublished: isPublishedValue,
+      isFeatured: isFeaturedValue,
+      metaTitle: metaTitle || title,
+      metaDescription: metaDescription || excerpt || ''
     });
     
     await blog.save();
@@ -64,7 +67,7 @@ exports.createBlog = async (req, res) => {
       data: blog
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error creating blog:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -169,7 +172,7 @@ exports.getAllBlogsAdmin = async (req, res) => {
 // @access  Private
 exports.updateBlog = async (req, res) => {
   try {
-    const { title, content, excerpt, author, authorImage, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
+    const { title, content, excerpt, author, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
     
     const blog = await Blog.findById(req.params.id);
     
@@ -177,18 +180,27 @@ exports.updateBlog = async (req, res) => {
       return res.status(404).json({ error: 'Blog post not found' });
     }
     
+    // Parse tags safely
+    let tagsArray = blog.tags;
+    if (tags) {
+      try {
+        tagsArray = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      } catch (e) {
+        tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      }
+    }
+    
     // Update fields
-    blog.title = title || blog.title;
-    blog.content = content || blog.content;
-    blog.excerpt = excerpt || blog.excerpt;
-    blog.author = author || blog.author;
-    blog.authorImage = authorImage || blog.authorImage;
-    blog.tags = tags ? JSON.parse(tags) : blog.tags;
-    blog.category = category || blog.category;
-    blog.isPublished = isPublished === 'true' || isPublished === true;
-    blog.isFeatured = isFeatured === 'true' || isFeatured === true;
-    blog.metaTitle = metaTitle || blog.metaTitle;
-    blog.metaDescription = metaDescription || blog.metaDescription;
+    if (title) blog.title = title.trim();
+    if (content) blog.content = content;
+    if (excerpt !== undefined) blog.excerpt = excerpt;
+    if (author) blog.author = author;
+    if (tags) blog.tags = tagsArray;
+    if (category) blog.category = category;
+    if (isPublished !== undefined) blog.isPublished = isPublished === 'true' || isPublished === true;
+    if (isFeatured !== undefined) blog.isFeatured = isFeatured === 'true' || isFeatured === true;
+    if (metaTitle) blog.metaTitle = metaTitle;
+    if (metaDescription) blog.metaDescription = metaDescription;
     
     // Update featured image if new one uploaded
     if (req.file) {
@@ -216,7 +228,7 @@ exports.updateBlog = async (req, res) => {
       data: blog
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error updating blog:', error);
     res.status(500).json({ error: error.message });
   }
 };
