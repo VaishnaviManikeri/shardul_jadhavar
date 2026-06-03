@@ -2,9 +2,20 @@ const Blog = require('../models/Blog');
 const path = require('path');
 const fs = require('fs');
 
+const stripHtml = (value = '') => String(value).replace(/<[^>]*>/g, '').trim();
+
+const parseBoolean = (value, defaultValue = false) => {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  return String(value).toLowerCase() === 'true';
+};
+
 const parseTags = (tags) => {
   if (!tags) return [];
-  if (Array.isArray(tags)) return tags.map((tag) => String(tag).trim()).filter(Boolean);
+
+  if (Array.isArray(tags)) {
+    return tags.map((tag) => String(tag).trim()).filter(Boolean);
+  }
 
   try {
     const parsedTags = JSON.parse(tags);
@@ -12,7 +23,7 @@ const parseTags = (tags) => {
       return parsedTags.map((tag) => String(tag).trim()).filter(Boolean);
     }
   } catch (error) {
-    // Fall back to comma-separated tags below.
+    // Use comma-separated fallback below.
   }
 
   return String(tags)
@@ -21,249 +32,282 @@ const parseTags = (tags) => {
     .filter(Boolean);
 };
 
-// @desc    Create a new blog post
-// @route   POST /api/blogs
-// @access  Private (Admin only)
+const calculateReadingTime = (content = '') => {
+  const text = stripHtml(content);
+  if (!text) return 1;
+
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(wordCount / 200));
+};
+
+const getUploadedImagePath = (file) => {
+  if (!file) return '';
+
+  if (file.path && /^https?:\/\//i.test(file.path)) {
+    return file.path;
+  }
+
+  if (file.filename) {
+    return `/uploads/blogs/${file.filename}`;
+  }
+
+  return file.path || '';
+};
+
+const deleteLocalImage = (imagePath) => {
+  if (!imagePath || /^https?:\/\//i.test(imagePath)) return;
+
+  const normalizedPath = imagePath.replace(/^\/+/, '');
+  const absolutePath = path.join(__dirname, '..', normalizedPath);
+
+  if (fs.existsSync(absolutePath)) {
+    fs.unlinkSync(absolutePath);
+  }
+};
+
+const getErrorMessage = (error) => {
+  if (error.name === 'ValidationError') {
+    return Object.values(error.errors).map((item) => item.message).join(', ');
+  }
+
+  return error.message || 'Server error';
+};
+
 exports.createBlog = async (req, res) => {
   try {
-    const { title, content, excerpt, author, authorImage, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
-    
-    // Check if featured image was uploaded
-    if (!req.file) {
-      return res.status(400).json({ error: 'Featured image is required' });
-    }
-    
-    // Calculate reading time (approx 200 words per minute)
-    const wordCount = content.replace(/<[^>]*>/g, '').split(/\s+/).length;
-    const readingTime = Math.max(1, Math.ceil(wordCount / 200));
-    
-    const blog = new Blog({
+    const {
       title,
       content,
       excerpt,
-      featuredImage: `/uploads/blogs/${req.file.filename}`,
-      author: author || 'Admin',
+      author,
+      authorImage,
+      tags,
+      category,
+      isPublished,
+      isFeatured,
+      metaTitle,
+      metaDescription,
+    } = req.body;
+
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, error: 'Title is required' });
+    }
+
+    if (!stripHtml(content)) {
+      return res.status(400).json({ success: false, error: 'Content is required' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Featured image is required' });
+    }
+
+    const blog = await Blog.create({
+      title: title.trim(),
+      content,
+      excerpt: excerpt?.trim(),
+      featuredImage: getUploadedImagePath(req.file),
+      author: author?.trim() || 'Admin',
       authorImage: authorImage || null,
-      readingTime,
+      readingTime: calculateReadingTime(content),
       tags: parseTags(tags),
       category: category || 'General',
-      isPublished: isPublished === 'true' || isPublished === true,
-      isFeatured: isFeatured === 'true' || isFeatured === true,
-      metaTitle,
-      metaDescription
+      isPublished: parseBoolean(isPublished, true),
+      isFeatured: parseBoolean(isFeatured, false),
+      metaTitle: metaTitle?.trim(),
+      metaDescription: metaDescription?.trim(),
     });
-    
-    await blog.save();
-    
-    res.status(201).json({
+
+    return res.status(201).json({
       success: true,
       message: 'Blog post created successfully',
-      data: blog
+      data: blog,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error creating blog:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Get all blog posts (public)
-// @route   GET /api/blogs
-// @access  Public
 exports.getAllBlogs = async (req, res) => {
   try {
     const { page = 1, limit = 10, category, tag, search } = req.query;
-    
-    let query = { isPublished: true };
-    
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const query = { isPublished: true };
+
     if (category && category !== 'all') {
       query.category = category;
     }
-    
+
     if (tag) {
       query.tags = tag;
     }
-    
-    if (search) {
-      query.$text = { $search: search };
+
+    if (search?.trim()) {
+      query.$text = { $search: search.trim() };
     }
-    
-    const blogs = await Blog.find(query)
-      .sort({ publishedAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-    
-    const total = await Blog.countDocuments(query);
-    
-    res.json({
+
+    const [blogs, total] = await Promise.all([
+      Blog.find(query)
+        .sort({ publishedAt: -1, createdAt: -1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit),
+      Blog.countDocuments(query),
+    ]);
+
+    return res.json({
       success: true,
       data: blogs,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
+      totalPages: Math.ceil(total / parsedLimit),
+      currentPage: parsedPage,
+      total,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching blogs:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Get single blog post (public)
-// @route   GET /api/blogs/:id
-// @access  Public
 exports.getBlogById = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
-    
+
     if (!blog) {
-      return res.status(404).json({ error: 'Blog post not found' });
+      return res.status(404).json({ success: false, error: 'Blog post not found' });
     }
-    
-    // Increment view count
+
     blog.views += 1;
     await blog.save();
-    
-    // Get related posts (same category or tags)
+
     const relatedPosts = await Blog.find({
       _id: { $ne: blog._id },
       isPublished: true,
-      $or: [
-        { category: blog.category },
-        { tags: { $in: blog.tags } }
-      ]
+      $or: [{ category: blog.category }, { tags: { $in: blog.tags } }],
     })
-    .limit(3)
-    .select('title featuredImage publishedAt readingTime');
-    
-    res.json({
+      .limit(3)
+      .select('title featuredImage publishedAt readingTime');
+
+    return res.json({
       success: true,
       data: blog,
-      relatedPosts
+      relatedPosts,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching blog:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Get all blogs for admin
-// @route   GET /api/blogs/admin/all
-// @access  Private
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
     const blogs = await Blog.find().sort({ createdAt: -1 });
-    res.json({
+
+    return res.json({
       success: true,
-      data: blogs
+      data: blogs,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching admin blogs:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Update blog post
-// @route   PUT /api/blogs/:id
-// @access  Private
 exports.updateBlog = async (req, res) => {
   try {
-    const { title, content, excerpt, author, authorImage, tags, category, isPublished, isFeatured, metaTitle, metaDescription } = req.body;
-    
     const blog = await Blog.findById(req.params.id);
-    
+
     if (!blog) {
-      return res.status(404).json({ error: 'Blog post not found' });
+      return res.status(404).json({ success: false, error: 'Blog post not found' });
     }
-    
-    // Update fields
-    blog.title = title || blog.title;
-    blog.content = content || blog.content;
-    blog.excerpt = excerpt || blog.excerpt;
-    blog.author = author || blog.author;
-    blog.authorImage = authorImage || blog.authorImage;
-    blog.tags = tags ? parseTags(tags) : blog.tags;
-    blog.category = category || blog.category;
-    blog.isPublished = isPublished === 'true' || isPublished === true;
-    blog.isFeatured = isFeatured === 'true' || isFeatured === true;
-    blog.metaTitle = metaTitle || blog.metaTitle;
-    blog.metaDescription = metaDescription || blog.metaDescription;
-    
-    // Update featured image if new one uploaded
+
+    const {
+      title,
+      content,
+      excerpt,
+      author,
+      authorImage,
+      tags,
+      category,
+      isPublished,
+      isFeatured,
+      metaTitle,
+      metaDescription,
+    } = req.body;
+
+    if (title !== undefined) blog.title = title.trim();
+    if (content !== undefined) blog.content = content;
+    if (excerpt !== undefined) blog.excerpt = excerpt.trim();
+    if (author !== undefined) blog.author = author.trim() || 'Admin';
+    if (authorImage !== undefined) blog.authorImage = authorImage || null;
+    if (tags !== undefined) blog.tags = parseTags(tags);
+    if (category !== undefined) blog.category = category || 'General';
+    if (isPublished !== undefined) blog.isPublished = parseBoolean(isPublished, blog.isPublished);
+    if (isFeatured !== undefined) blog.isFeatured = parseBoolean(isFeatured, blog.isFeatured);
+    if (metaTitle !== undefined) blog.metaTitle = metaTitle.trim();
+    if (metaDescription !== undefined) blog.metaDescription = metaDescription.trim();
+
+    if (!stripHtml(blog.content)) {
+      return res.status(400).json({ success: false, error: 'Content is required' });
+    }
+
     if (req.file) {
-      // Delete old image
-      const oldImagePath = path.join(__dirname, '..', blog.featuredImage);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-      blog.featuredImage = `/uploads/blogs/${req.file.filename}`;
+      deleteLocalImage(blog.featuredImage);
+      blog.featuredImage = getUploadedImagePath(req.file);
     }
-    
-    // Update reading time
-    const wordCount = blog.content.replace(/<[^>]*>/g, '').split(/\s+/).length;
-    blog.readingTime = Math.max(1, Math.ceil(wordCount / 200));
-    
+
+    blog.readingTime = calculateReadingTime(blog.content);
     await blog.save();
-    
-    res.json({
+
+    return res.json({
       success: true,
       message: 'Blog post updated successfully',
-      data: blog
+      data: blog,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error updating blog:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Delete blog post
-// @route   DELETE /api/blogs/:id
-// @access  Private
 exports.deleteBlog = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
-    
+
     if (!blog) {
-      return res.status(404).json({ error: 'Blog post not found' });
+      return res.status(404).json({ success: false, error: 'Blog post not found' });
     }
-    
-    // Delete featured image
-    const imagePath = path.join(__dirname, '..', blog.featuredImage);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
-    
+
+    deleteLocalImage(blog.featuredImage);
     await blog.deleteOne();
-    
-    res.json({
+
+    return res.json({
       success: true,
-      message: 'Blog post deleted successfully'
+      message: 'Blog post deleted successfully',
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error deleting blog:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
-// @desc    Toggle publish status
-// @route   PATCH /api/blogs/:id/toggle-publish
-// @access  Private
 exports.togglePublish = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
-    
+
     if (!blog) {
-      return res.status(404).json({ error: 'Blog post not found' });
+      return res.status(404).json({ success: false, error: 'Blog post not found' });
     }
-    
+
     blog.isPublished = !blog.isPublished;
     await blog.save();
-    
-    res.json({
+
+    return res.json({
       success: true,
       message: `Blog ${blog.isPublished ? 'published' : 'unpublished'} successfully`,
-      data: blog
+      data: blog,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('Error toggling blog publish status:', error);
+    return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
