@@ -2,6 +2,25 @@ const Blog = require('../models/Blog');
 const path = require('path');
 const fs = require('fs');
 
+const parseTags = (tags) => {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags.map((tag) => String(tag).trim()).filter(Boolean);
+
+  try {
+    const parsedTags = JSON.parse(tags);
+    if (Array.isArray(parsedTags)) {
+      return parsedTags.map((tag) => String(tag).trim()).filter(Boolean);
+    }
+  } catch (error) {
+    // Fall back to comma-separated tags below.
+  }
+
+  return String(tags)
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+};
+
 // @desc    Create a new blog post
 // @route   POST /api/blogs
 // @access  Private (Admin only)
@@ -26,7 +45,7 @@ exports.createBlog = async (req, res) => {
       author: author || 'Admin',
       authorImage: authorImage || null,
       readingTime,
-      tags: tags ? JSON.parse(tags) : [],
+      tags: parseTags(tags),
       category: category || 'General',
       isPublished: isPublished === 'true' || isPublished === true,
       isFeatured: isFeatured === 'true' || isFeatured === true,
@@ -161,7 +180,7 @@ exports.updateBlog = async (req, res) => {
     blog.excerpt = excerpt || blog.excerpt;
     blog.author = author || blog.author;
     blog.authorImage = authorImage || blog.authorImage;
-    blog.tags = tags ? JSON.parse(tags) : blog.tags;
+    blog.tags = tags ? parseTags(tags) : blog.tags;
     blog.category = category || blog.category;
     blog.isPublished = isPublished === 'true' || isPublished === true;
     blog.isFeatured = isFeatured === 'true' || isFeatured === true;

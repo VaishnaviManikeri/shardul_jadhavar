@@ -39,15 +39,16 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-// Public routes
-router.get('/', blogController.getAllBlogs);
-router.get('/:id', blogController.getBlogById);
-
 // Admin routes (protected)
+// Keep fixed paths before "/:id" so "admin/all" is not treated as a blog id.
 router.get('/admin/all', auth, blogController.getAllBlogsAdmin);
 router.post('/', auth, upload.single('featuredImage'), blogController.createBlog);
 router.put('/:id', auth, upload.single('featuredImage'), blogController.updateBlog);
 router.delete('/:id', auth, blogController.deleteBlog);
 router.patch('/:id/toggle-publish', auth, blogController.togglePublish);
+
+// Public routes
+router.get('/', blogController.getAllBlogs);
+router.get('/:id', blogController.getBlogById);
 
 module.exports = router;
