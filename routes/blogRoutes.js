@@ -6,18 +6,21 @@ const fs = require('fs');
 const auth = require('../middleware/auth');
 const blogController = require('../controllers/blogController');
 
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, '../uploads/blogs');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Configure multer for image upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/blogs');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const ext = path.extname(file.originalname);
+    cb(null, 'blog-' + uniqueSuffix + ext);
   }
 });
 
@@ -29,7 +32,7 @@ const fileFilter = (req, file, cb) => {
   if (mimetype && extname) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed'));
+    cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
   }
 };
 
