@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const stripHtml = (value = '') => String(value).replace(/<[^>]*>/g, '').trim();
+
 const blogSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -71,11 +73,10 @@ const blogSchema = new mongoose.Schema({
 // Create index for search
 blogSchema.index({ title: 'text', content: 'text', tags: 'text' });
 
-// Generate excerpt from content if not provided
+// Generate derived fields before saving. Mongoose 9 does not pass a next callback here.
 blogSchema.pre('save', function() {
   if (!this.excerpt && this.content) {
-    // Remove HTML tags and get plain text
-    const plainText = this.content.replace(/<[^>]*>/g, '');
+    const plainText = stripHtml(this.content);
     this.excerpt = plainText.substring(0, 250) + (plainText.length > 250 ? '...' : '');
   }
   

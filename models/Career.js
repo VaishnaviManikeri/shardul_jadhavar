@@ -49,9 +49,5 @@ const careerSchema = new mongoose.Schema({
 });
 
 // ❌ REMOVE THIS BLOCK COMPLETELY
-// careerSchema.pre('save', function(next) {
-//   this.updatedAt = Date.now();
-//   next();
-// });
 
 module.exports = mongoose.model('Career', careerSchema);
