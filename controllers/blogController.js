@@ -23,7 +23,7 @@ const parseTags = (tags) => {
       return parsedTags.map((tag) => String(tag).trim()).filter(Boolean);
     }
   } catch (error) {
-    // Use comma-separated fallback below.
+    // Fall through to comma-separated split below
   }
 
   return String(tags)
@@ -35,18 +35,22 @@ const parseTags = (tags) => {
 const calculateReadingTime = (content = '') => {
   const text = stripHtml(content);
   if (!text) return 1;
-
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(wordCount / 200));
 };
 
+// ✅ Returns the stored image path.
+// If multer saved to disk, req.file.filename is present → /uploads/blogs/<filename>
+// If using cloud storage (e.g. Cloudinary), req.file.path is the full https:// URL
 const getUploadedImagePath = (file) => {
   if (!file) return '';
 
+  // Cloud storage: file.path is already a full URL
   if (file.path && /^https?:\/\//i.test(file.path)) {
     return file.path;
   }
 
+  // Disk storage: file.filename is the saved filename
   if (file.filename) {
     return `/uploads/blogs/${file.filename}`;
   }
@@ -55,24 +59,33 @@ const getUploadedImagePath = (file) => {
 };
 
 const deleteLocalImage = (imagePath) => {
+  // Skip deletion for cloud/absolute URLs
   if (!imagePath || /^https?:\/\//i.test(imagePath)) return;
 
   const normalizedPath = imagePath.replace(/^\/+/, '');
   const absolutePath = path.join(__dirname, '..', normalizedPath);
 
   if (fs.existsSync(absolutePath)) {
-    fs.unlinkSync(absolutePath);
+    try {
+      fs.unlinkSync(absolutePath);
+    } catch (err) {
+      console.error('Failed to delete image file:', err.message);
+    }
   }
 };
 
 const getErrorMessage = (error) => {
   if (error.name === 'ValidationError') {
-    return Object.values(error.errors).map((item) => item.message).join(', ');
+    return Object.values(error.errors)
+      .map((item) => item.message)
+      .join(', ');
   }
-
   return error.message || 'Server error';
 };
 
+// ---------------------------------------------------------------------------
+// CREATE
+// ---------------------------------------------------------------------------
 exports.createBlog = async (req, res) => {
   try {
     const {
@@ -97,6 +110,7 @@ exports.createBlog = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Content is required' });
     }
 
+    // ✅ req.file is populated by multer.single('featuredImage') in the route
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'Featured image is required' });
     }
@@ -128,6 +142,9 @@ exports.createBlog = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET ALL (public — paginated, filtered)
+// ---------------------------------------------------------------------------
 exports.getAllBlogs = async (req, res) => {
   try {
     const { page = 1, limit = 10, category, tag, search } = req.query;
@@ -168,6 +185,9 @@ exports.getAllBlogs = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET BY ID (public — increments views)
+// ---------------------------------------------------------------------------
 exports.getBlogById = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -198,20 +218,22 @@ exports.getBlogById = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET ALL (admin — no pagination, all statuses)
+// ---------------------------------------------------------------------------
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
     const blogs = await Blog.find().sort({ createdAt: -1 });
-
-    return res.json({
-      success: true,
-      data: blogs,
-    });
+    return res.json({ success: true, data: blogs });
   } catch (error) {
     console.error('Error fetching admin blogs:', error);
     return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
+// ---------------------------------------------------------------------------
+// UPDATE
+// ---------------------------------------------------------------------------
 exports.updateBlog = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -250,6 +272,7 @@ exports.updateBlog = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Content is required' });
     }
 
+    // Only replace image if a new file was uploaded
     if (req.file) {
       deleteLocalImage(blog.featuredImage);
       blog.featuredImage = getUploadedImagePath(req.file);
@@ -269,6 +292,9 @@ exports.updateBlog = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// DELETE
+// ---------------------------------------------------------------------------
 exports.deleteBlog = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
@@ -280,16 +306,16 @@ exports.deleteBlog = async (req, res) => {
     deleteLocalImage(blog.featuredImage);
     await blog.deleteOne();
 
-    return res.json({
-      success: true,
-      message: 'Blog post deleted successfully',
-    });
+    return res.json({ success: true, message: 'Blog post deleted successfully' });
   } catch (error) {
     console.error('Error deleting blog:', error);
     return res.status(500).json({ success: false, error: getErrorMessage(error) });
   }
 };
 
+// ---------------------------------------------------------------------------
+// TOGGLE PUBLISH
+// ---------------------------------------------------------------------------
 exports.togglePublish = async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
